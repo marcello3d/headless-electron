@@ -41,6 +41,7 @@ describe("headless-electron", () => {
       await ep.kill();
     }
   });
+
   it("runs named typescript function", async () => {
     const ep = new ElectronProcess();
     try {
@@ -50,6 +51,21 @@ describe("headless-electron", () => {
         args: [2, 3],
       });
       expect(result).toBe(6);
+    } finally {
+      await ep.kill();
+    }
+  });
+  it("generates canvas image", async () => {
+    const ep = new ElectronProcess();
+    try {
+      const result = await ep.runScript({
+        pathname: path.resolve(__dirname, "typescript.ts"),
+        functionName: "canvasDrawRectToPng",
+      });
+      const dataImagePngBase64 = "data:image/png;base64,";
+      expect(result.slice(0, dataImagePngBase64.length)).toEqual(
+        dataImagePngBase64
+      );
     } finally {
       await ep.kill();
     }
