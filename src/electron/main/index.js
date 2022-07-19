@@ -1,5 +1,5 @@
 try {
-  require("ts-node/register");
+  require("ts-node/register/transpile-only");
 } catch (e) {
   // issok
 }
