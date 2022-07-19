@@ -1,7 +1,3 @@
-if (__filename.endsWith(".ts")) {
-  require("ts-node/register");
-}
-
 import { app } from "electron";
 import { WindowPool } from "./window-pool";
 import { ProcessIpcInputMessage, ProcessIpcOutputMessage } from "../shared";

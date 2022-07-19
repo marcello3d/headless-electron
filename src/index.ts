@@ -13,11 +13,20 @@ type Spawned = ReturnType<typeof spawn>;
 
 export class ElectronProcess {
   private process: Promise<Spawned>;
+  private readonly debugMode: boolean;
+  private readonly concurrency: number;
 
-  constructor(
-    public readonly debugMode: boolean = false,
-    public readonly concurrency: number = 1
-  ) {}
+  constructor({
+    debugMode = false,
+    concurrency = 1,
+  }: {
+    debugMode?: boolean;
+    concurrency?: number;
+    requires?: string[];
+  } = {}) {
+    this.debugMode = debugMode;
+    this.concurrency = concurrency;
+  }
 
   /**
    * get an idle electron with lock

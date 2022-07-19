@@ -2,7 +2,7 @@
   "name": "headless-electron",
   "version": "0.1.0",
   "description": "Easiest way to run jest unit test cases in electron.",
-  "main": "index.js",
+  "main": "lib/index.js",
   "files": [
     "lib",
     "runner.js",
@@ -16,7 +16,7 @@
   "scripts": {
     "test-live": "DEBUG_MODE=1 jest",
     "test": "jest",
-    "cp": "copyfiles -u 1 src/electron/**/*.{html,css} lib",
+    "cp": "copyfiles -u 1 src/electron/**/*.{html,js,css} lib",
     "build": "rimraf lib && tsc && npm run cp",
     "watch": "npm run build && tsc --watch",
     "prepublishOnly": "npm run build"

@@ -4,4 +4,9 @@ try {
   // issok
 }
 
-require("./main");
+try {
+  require("./main");
+} catch (e) {
+  console.error(e);
+  process.exit(-1);
+}
