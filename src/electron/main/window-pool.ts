@@ -1,51 +1,36 @@
-import * as path from 'path';
-import * as url from 'url';
-import throat from 'throat';
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { EventsEnum } from '../../utils/constant';
-import { delay } from '../../utils/delay';
-import { uuid } from '../../utils/uuid';
-import { Config } from '../../utils/config';
+import * as path from "path";
+import * as url from "url";
+import { BrowserWindow, ipcMain, RenderProcessGoneDetails } from "electron";
+import { delay } from "../../utils/delay";
+import { RunResultEvent, RunScriptEvent } from "../shared";
 
 type Info = {
   win: BrowserWindow;
   idle: boolean;
-  tests: any[];
-}
-
-// configure save instance
-const config = new Config(app.getPath('userData'));
+};
 
 /**
  * browser window (renderer) pool
  */
 export class WindowPool {
-
   private pool: Info[] = [];
-  private maxSize: number;
-  private debugMode: boolean;
 
   // create new browser window instance lock flag
   private locked = false;
 
-  constructor(maxSize: number = 1, debugMode: boolean = false) {
-    // when debug mode, only 1 window can be work
-    this.maxSize = debugMode ? 1 : maxSize;
-    this.debugMode = debugMode;
-
-    ipcMain.on(EventsEnum.WebContentsReady, () => {
-      this.runAllTest();
-    });
-  }
+  constructor(
+    private readonly maxSize: number,
+    private readonly debugMode: boolean = false
+  ) {}
 
   /**
    * get a window with thread lock
    */
-  private async get(): Promise<BrowserWindow> {
+  private async getIdleWindow(): Promise<BrowserWindow> {
     // if locked, delay and retry
     if (this.locked) {
       await delay();
-      return await this.get();
+      return await this.getIdleWindow();
     }
 
     this.locked = true;
@@ -61,26 +46,21 @@ export class WindowPool {
    * get a window from pool, if not exist, create one, if pool is full, wait and retry
    */
   private async getAsync(): Promise<BrowserWindow> {
-    // find a idle window
-    let info: Info = this.pool.find((info) => info.idle);
+    // find an idle window
+    const info = this.pool.find((info) => info.idle);
 
-    // exist ide window, return it for usage
-    if (info) return info.win;
+    if (info) {
+      return info.win;
+    }
 
-    // no idle window
-    // and the pool is full, delay some time
+    // no available windows, wait...
     if (this.isFull()) {
       await delay();
-
       return await this.getAsync();
     }
 
-    // pool has space, then create a new window instance
     const win = await this.create();
-
-    // put it into pool
-    this.pool.push({ win, idle: true, tests: [] });
-
+    this.pool.push({ win, idle: true });
     return win;
   }
 
@@ -89,46 +69,38 @@ export class WindowPool {
    */
   private async create(): Promise<BrowserWindow> {
     return new Promise((resolve, reject) => {
-      const winOpts = {
-        // read window size from configure file
-        ...config.read(),
+      let win = new BrowserWindow({
+        width: 800,
+        height: 600,
         show: this.debugMode,
         focusable: this.debugMode,
         webPreferences: {
           webSecurity: false,
           nodeIntegration: true,
-          contextIsolation: false
+          contextIsolation: false,
         },
-      };
-
-      let win = new BrowserWindow(winOpts);
-
-      // when window close, save window size locally
-      win.on('close', () => {
-        const { width, height } = win.getBounds();
-        config.write({ width, height });
       });
 
       // after window closed, remove it from pool for gc
-      win.on('closed', () => {
+      win.on("closed", () => {
         this.removeWin(win);
         win = undefined;
       });
 
-      const f = url.format({
+      const fileUrl = url.format({
         hash: encodeURIComponent(JSON.stringify({ debugMode: this.debugMode })),
-        pathname: path.join(__dirname, '/index.html'),
-        protocol: 'file:',
+        pathname: path.join(__dirname, "/index.html"),
+        protocol: "file:",
         slashes: true,
       });
-      win.loadURL(f);
+      win.loadURL(fileUrl);
 
       if (this.debugMode) {
         // when debug mode, open dev tools
         win.webContents.openDevTools();
       }
 
-      win.webContents.on('did-finish-load', () => {
+      win.webContents.once("did-finish-load", () => {
         // win ready
         resolve(win);
       });
@@ -155,31 +127,13 @@ export class WindowPool {
    * @param idle
    */
   private setIdle(win: BrowserWindow, idle: boolean) {
-    const idx = this.pool.findIndex(info => info.win === win);
+    const idx = this.pool.findIndex((info) => info.win === win);
 
     this.pool[idx].idle = idle;
   }
 
-  private appendTest(win: BrowserWindow, test: any) {
-    const idx = this.pool.findIndex(info => info.win === win);
-
-    this.pool[idx].tests.push(test);
-  }
-
-  /**
-   * clear all the save tests in memory
-   */
-  public clearSaveTests() {
-    this.pool.forEach(info => {
-      info.tests = [];
-      // remove all test result dom
-      info.win.webContents.send(EventsEnum.ClearTestResults);
-    });
-  }
-
-
   private removeWin(win: BrowserWindow) {
-    const idx = this.pool.findIndex((info) => info.win = win);
+    const idx = this.pool.findIndex((info) => (info.win = win));
 
     // remove from pool by index
     if (idx !== -1) {
@@ -191,41 +145,42 @@ export class WindowPool {
 
   /**
    * run test case by send it to renderer
-   * @param id
-   * @param test
    */
-  public async runTest(id: string, test: any): Promise<any> {
-    const win = await this.get();
-    const result =  await this.run(win, id, test);
-
-    this.appendTest(win, test);
-    return result;
+  public async runScript(params: RunScriptEvent): Promise<RunResultEvent> {
+    const idleWindow = await this.getIdleWindow();
+    return await this.runScriptOnWindow(idleWindow, params);
   }
 
-  private async runAllTest() {
-    this.pool.map(async info => {
-      await Promise.all(info.tests.map(
-        throat(1, async (test: any) => {
-          return await this.run(info.win, uuid(), test);
-        })
-      ));
-    });
-  }
-
-  private async run(win: BrowserWindow, id: string, test: any) {
+  private async runScriptOnWindow(
+    win: BrowserWindow,
+    params: RunScriptEvent
+  ): Promise<any> {
     return new Promise((resolve, reject) => {
       this.setIdle(win, false);
 
-      // redirect the test result ti proc
-      ipcMain.once(id, (event, result) => {
-        // test case running end, set the window with idle status
+      const cleanup = () => {
+        ipcMain.removeListener(params.id, onResult);
+        win.webContents.removeListener("render-process-gone", onError);
         this.setIdle(win, true);
-        // resolve test result
-        resolve({ result, id });
-      });
+      };
 
+      function onResult(event, result: RunResultEvent) {
+        cleanup();
+        resolve(result);
+      }
+
+      ipcMain.once(params.id, onResult);
+
+      function onError(event, details: RenderProcessGoneDetails) {
+        cleanup();
+        win.close();
+        reject(
+          new Error(`run script error: ${details.reason} (${details.exitCode})`)
+        );
+      }
       // send test case into web contents for running
-      win.webContents.send(EventsEnum.StartRunTest, test, id);
+      win.webContents.on("render-process-gone", onError);
+      win.webContents.send("message", params);
     });
   }
 }

@@ -1,6 +1,6 @@
 {
-  "name": "jest-electron",
-  "version": "0.1.12",
+  "name": "headless-electron",
+  "version": "0.1.0",
   "description": "Easiest way to run jest unit test cases in electron.",
   "main": "index.js",
   "files": [
@@ -8,16 +8,42 @@
     "runner.js",
     "environment.js"
   ],
+  "husky": {
+    "hooks": {
+      "pre-commit": "pretty-quick --staged"
+    }
+  },
   "scripts": {
     "test-live": "DEBUG_MODE=1 jest",
     "test": "jest",
     "cp": "copyfiles -u 1 src/electron/**/*.{html,css} lib",
     "build": "rimraf lib && tsc && npm run cp",
+    "watch": "npm run build && tsc --watch",
     "prepublishOnly": "npm run build"
   },
+  "peerDependencies": {
+    "electron": ">= 16"
+  },
+  "devDependencies": {
+    "@types/jest": "^28.1.6",
+    "@types/react": "^18.0.15",
+    "@typescript-eslint/eslint-plugin": "^5.30.7",
+    "@typescript-eslint/parser": "^5.30.7",
+    "copyfiles": "^2.1.1",
+    "electron": "^19.0.8",
+    "eslint": "^8.20.0",
+    "eslint-config-prettier": "^8.5.0",
+    "fs-extra": "^10.0.0",
+    "husky": "4.3.0",
+    "prettier": "^2.7.1",
+    "pretty-quick": "^3.1.3",
+    "rimraf": "^3.0.0",
+    "ts-jest": "^28.0.7",
+    "ts-node": "^10.9.1",
+    "tslint-config-prettier": "1.18.0",
+    "typescript": "^4.7.4"
+  },
   "jest": {
-    "runner": "./runner",
-    "testEnvironment": "./environment",
     "preset": "ts-jest",
     "collectCoverage": true,
     "testRegex": "(/__tests__/.*\\.(test|spec))\\.tsx?$",
@@ -25,42 +51,17 @@
       "src/**/*.ts"
     ]
   },
-  "dependencies": {
-    "electron": "^12",
-    "jest-haste-map": "~24.9.0",
-    "jest-message-util": "~24.9.0",
-    "jest-mock": "~24.9.0",
-    "jest-resolve": "~24.9.0",
-    "jest-runner": "~24.9.0",
-    "jest-runtime": "~24.9.0",
-    "jest-util": "~24.9.0",
-    "throat": "^5.0.0",
-    "tslib": "^1.10.0"
-  },
-  "peerDependencies": {
-    "jest": "^24.0.0"
-  },
-  "devDependencies": {
-    "@types/jest": "^24.0.18",
-    "@types/react": "^16.9.15",
-    "copyfiles": "^2.1.1",
-    "jest": "^24.9.0",
-    "react": "^16.12.0",
-    "react-dom": "^16.12.0",
-    "rimraf": "^3.0.0",
-    "ts-jest": "^24.0.2",
-    "typescript": "^3.6.2"
-  },
   "keywords": [
-    "jest-electron",
-    "jest-runner",
-    "jest",
+    "headless",
     "electron"
   ],
-  "author": "hustcc",
+  "authors": [
+    "hustcc",
+    "Marcello Bastea-Forte <marcello@cellosoft.com>"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hustcc/jest-electron.git"
+    "url": "git+https://github.com/marcello3d/headless-electron.git"
   }
 }
