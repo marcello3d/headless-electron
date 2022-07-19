@@ -1,7 +1,7 @@
 import { ElectronProcess } from "../src";
 import * as path from "path";
 
-jest.setTimeout(10_000);
+jest.setTimeout(30_000);
 
 describe("headless-electron", () => {
   it("runs default script", async () => {
@@ -16,6 +16,7 @@ describe("headless-electron", () => {
       await ep.kill();
     }
   });
+
   it("runs named script", async () => {
     const ep = new ElectronProcess();
     try {
@@ -29,6 +30,7 @@ describe("headless-electron", () => {
       await ep.kill();
     }
   });
+
   it("runs default typescript function", async () => {
     const ep = new ElectronProcess();
     try {
@@ -55,6 +57,7 @@ describe("headless-electron", () => {
       await ep.kill();
     }
   });
+
   it("generates canvas image", async () => {
     const ep = new ElectronProcess();
     try {
@@ -66,6 +69,28 @@ describe("headless-electron", () => {
       expect(result.slice(0, dataImagePngBase64.length)).toEqual(
         dataImagePngBase64
       );
+    } finally {
+      await ep.kill();
+    }
+  });
+
+  it("runs 100 times in a loop", async () => {
+    const ep = new ElectronProcess({ concurrency: 10 });
+    try {
+      const promises = [];
+      const expectedResults = [];
+      for (let i = 0; i < 100; i++) {
+        promises.push(
+          ep.runScript({
+            pathname: path.resolve(__dirname, "typescript.ts"),
+            functionName: "multiply",
+            args: [i, 3],
+          })
+        );
+        expectedResults.push(i * 3);
+      }
+      const results = await Promise.all(promises);
+      expect(results).toEqual(expectedResults);
     } finally {
       await ep.kill();
     }
