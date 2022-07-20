@@ -2,26 +2,38 @@ import * as path from "path";
 import * as url from "url";
 import { BrowserWindow, ipcMain, RenderProcessGoneDetails } from "electron";
 import { delay } from "../../utils/delay";
-import { RunResultEvent, RunScriptEvent } from "../shared";
+import {
+  ElectronIpcRendererInputMessage,
+  ProcessIpcOutputMessage,
+  RunResultEvent,
+  RunScriptEvent,
+} from "../shared";
 
-type Info = {
-  win: BrowserWindow;
-  idle: boolean;
+type RunningScript = {
+  promiseResolve: (result: any) => void;
+  promiseReject: (error: any) => void;
+  statusCallback?: (status: any) => void;
 };
 
 /**
  * browser window (renderer) pool
  */
 export class WindowPool {
-  private pool: Info[] = [];
+  private readonly idlePool = new Set<BrowserWindow>();
+  private readonly activePool = new Map<string, BrowserWindow>();
 
   // create new browser window instance lock flag
   private locked = false;
 
   constructor(
+    private readonly minSize: number,
     private readonly maxSize: number,
     private readonly debugMode: boolean = false
-  ) {}
+  ) {
+    for (let i = 0; i < minSize; i++) {
+      void this.create();
+    }
+  }
 
   /**
    * get a window with thread lock
@@ -46,11 +58,9 @@ export class WindowPool {
    * get a window from pool, if not exist, create one, if pool is full, wait and retry
    */
   private async getAsync(): Promise<BrowserWindow> {
-    // find an idle window
-    const info = this.pool.find((info) => info.idle);
-
-    if (info) {
-      return info.win;
+    // get first idle window by iterating over values and returning first one
+    for (const win of this.idlePool) {
+      return win;
     }
 
     // no available windows, wait...
@@ -59,9 +69,7 @@ export class WindowPool {
       return await this.getAsync();
     }
 
-    const win = await this.create();
-    this.pool.push({ win, idle: true });
-    return win;
+    return await this.create();
   }
 
   /**
@@ -69,7 +77,7 @@ export class WindowPool {
    */
   private async create(): Promise<BrowserWindow> {
     return new Promise((resolve, reject) => {
-      let win = new BrowserWindow({
+      let win: BrowserWindow | undefined = new BrowserWindow({
         width: 800,
         height: 600,
         show: this.debugMode,
@@ -83,8 +91,11 @@ export class WindowPool {
 
       // after window closed, remove it from pool for gc
       win.on("closed", () => {
-        this.removeWin(win);
-        win = undefined;
+        if (win) {
+          this.removeWin(win);
+          reject("window closed");
+          win = undefined;
+        }
       });
 
       const fileUrl = url.format({
@@ -101,9 +112,17 @@ export class WindowPool {
       }
 
       win.webContents.once("did-finish-load", () => {
-        // win ready
-        resolve(win);
+        if (win) {
+          this.idlePool.add(win);
+          resolve(win);
+        }
       });
+      win.webContents.once(
+        "did-fail-load",
+        (event, errorCode, errorDescription) => {
+          reject(new Error(`did-fail-load (${errorCode}: ${errorDescription}`));
+        }
+      );
     });
   }
 
@@ -111,7 +130,7 @@ export class WindowPool {
    * the proc size of pool
    */
   public size() {
-    return this.pool.length;
+    return this.idlePool.size + this.activePool.size;
   }
 
   /**
@@ -120,67 +139,100 @@ export class WindowPool {
   public isFull() {
     return this.size() >= this.maxSize;
   }
+  private retainWin(id: string, win: BrowserWindow) {
+    this.idlePool.delete(win);
+    this.activePool.set(id, win);
+  }
 
-  /**
-   * set the proc idle status
-   * @param win
-   * @param idle
-   */
-  private setIdle(win: BrowserWindow, idle: boolean) {
-    const idx = this.pool.findIndex((info) => info.win === win);
-
-    this.pool[idx].idle = idle;
+  private releaseWin(id: string, win: BrowserWindow) {
+    this.activePool.delete(id);
+    this.idlePool.add(win);
   }
 
   private removeWin(win: BrowserWindow) {
-    const idx = this.pool.findIndex((info) => (info.win = win));
-
-    // remove from pool by index
-    if (idx !== -1) {
-      this.pool.splice(idx, 1);
+    for (const [id, w] of this.activePool) {
+      if (w === win) {
+        this.activePool.delete(id);
+        break;
+      }
     }
-
+    this.idlePool.delete(win);
     win.destroy();
   }
 
   /**
    * run test case by send it to renderer
    */
-  public async runScript(params: RunScriptEvent): Promise<RunResultEvent> {
-    const idleWindow = await this.getIdleWindow();
-    return await this.runScriptOnWindow(idleWindow, params);
+  public async runScript(
+    params: RunScriptEvent,
+    processSend: (message: ProcessIpcOutputMessage) => void
+  ): Promise<void> {
+    this.getIdleWindow()
+      .then((win) => this.runScriptOnWindow(win, params, processSend))
+      .catch((e) => {
+        processSend({
+          type: "run-rejected",
+          id: params.id,
+          error: e.message,
+        });
+      });
   }
 
-  private async runScriptOnWindow(
+  private runScriptOnWindow(
     win: BrowserWindow,
-    params: RunScriptEvent
-  ): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.setIdle(win, false);
+    event: RunScriptEvent,
+    processSend: (message: ProcessIpcOutputMessage) => void
+  ): void {
+    let resolved = false;
+    const id = event.id;
+    this.retainWin(id, win);
 
-      const cleanup = () => {
-        ipcMain.removeListener(params.id, onResult);
-        win.webContents.removeListener("render-process-gone", onError);
-        this.setIdle(win, true);
-      };
+    const cleanup = () => {
+      resolved = true;
+      ipcMain.removeListener(id, onResult);
+      win.webContents.removeListener("render-process-gone", onError);
+      this.releaseWin(id, win);
+    };
 
-      function onResult(event, result: RunResultEvent) {
-        cleanup();
-        resolve(result);
+    function onResult(event, message: RunResultEvent) {
+      processSend(message);
+
+      switch (message.type) {
+        case "run-resolved":
+        case "run-rejected":
+          cleanup();
+          break;
       }
+    }
 
-      ipcMain.once(params.id, onResult);
+    ipcMain.on(id, onResult);
 
-      function onError(event, details: RenderProcessGoneDetails) {
-        cleanup();
-        win.close();
-        reject(
-          new Error(`run script error: ${details.reason} (${details.exitCode})`)
-        );
-      }
-      // send test case into web contents for running
-      win.webContents.on("render-process-gone", onError);
-      win.webContents.send("message", params);
-    });
+    function onError(event, details: RenderProcessGoneDetails) {
+      processSend({
+        type: "run-rejected",
+        id,
+        error: `run script error: ${details.reason} (${details.exitCode})`,
+      });
+      cleanup();
+      win.close();
+    }
+    // send test case into web contents for running
+    win.webContents.on("render-process-gone", onError);
+    win.webContents.send("message", event);
+  }
+
+  handle(
+    message: ElectronIpcRendererInputMessage,
+    processSend: (message: ProcessIpcOutputMessage) => void
+  ) {
+    switch (message.type) {
+      case "run-script":
+        this.runScript(message, processSend);
+        break;
+
+      case "abort-script":
+        this.activePool.get(message.id)?.webContents.send("message", message);
+        break;
+    }
   }
 }

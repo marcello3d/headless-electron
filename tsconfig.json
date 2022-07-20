@@ -6,6 +6,7 @@
     "target": "es2020",
     "outDir": "lib",
     "allowSyntheticDefaultImports": true,
+    "strictNullChecks": true,
     "lib": ["esnext", "dom"],
     "jsx": "react"
   },

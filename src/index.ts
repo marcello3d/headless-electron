@@ -2,128 +2,189 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { uuid } from "./utils/uuid";
 import {
+  ProcessIpcInputMessage,
   ProcessIpcOutputMessage,
-  RunScriptEvent,
-  RunScriptParams,
+  RunResultEvent,
 } from "./electron/shared";
 
 const electronPath = require("electron") as unknown as string;
 
-type Spawned = ReturnType<typeof spawn>;
+type SpawnProcess = ReturnType<typeof spawn>;
 
 export class ElectronProcess {
-  private process: Promise<Spawned>;
+  private process: SpawnProcess | undefined;
+  private ready = false;
+  private readyPromise: Promise<void>;
   private readonly debugMode: boolean;
-  private readonly concurrency: number;
+  private readonly minConcurrency: number;
+  private readonly maxConcurrency: number;
+
+  private readonly scriptHandlers = new Map<
+    string,
+    (event: RunResultEvent) => void
+  >();
 
   constructor({
     debugMode = false,
-    concurrency = 1,
+    minConcurrency = 0,
+    maxConcurrency = 1,
   }: {
     debugMode?: boolean;
-    concurrency?: number;
+    minConcurrency?: number;
+    maxConcurrency?: number;
     requires?: string[];
   } = {}) {
-    this.debugMode = debugMode;
-    this.concurrency = concurrency;
-  }
-
-  /**
-   * get an idle electron with lock
-   */
-  private async getProcess(): Promise<Spawned> {
-    if (!this.process) {
-      this.process = this.create();
+    if (minConcurrency > maxConcurrency) {
+      throw new Error(
+        '"minConcurrency" must be less than or equal to "maxConcurrency"'
+      );
     }
-    return this.process;
+    this.debugMode = debugMode;
+    this.minConcurrency = minConcurrency;
+    this.maxConcurrency = maxConcurrency;
+    this.process = this.spawnElectron();
   }
 
-  /**
-   * create an idle electron proc
-   */
-  private async create(): Promise<Spawned> {
-    return new Promise((resolve, reject) => {
-      const args: string[] = [];
-      if (process.env.HEADLESS_ELECTRON_NO_SANDBOX) {
-        args.push("--no-sandbox");
-      }
-      if (process.env.HEADLESS_ELECTRON_STARTUP_ARGS) {
-        args.push(...process.env.HEADLESS_ELECTRON_STARTUP_ARGS.split(/\s+/));
-      }
-      args.push(path.resolve(__dirname, "electron/main/index"));
+  private spawnElectron(): SpawnProcess {
+    const args: string[] = [];
+    if (process.env.HEADLESS_ELECTRON_NO_SANDBOX) {
+      args.push("--no-sandbox");
+    }
+    if (process.env.HEADLESS_ELECTRON_STARTUP_ARGS) {
+      args.push(...process.env.HEADLESS_ELECTRON_STARTUP_ARGS.split(/\s+/));
+    }
+    args.push(path.resolve(__dirname, "electron/main/index"));
 
-      const proc = spawn(electronPath, args, {
-        stdio: ["ipc", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          DEBUG_MODE: this.debugMode ? "true" : "",
-          CONCURRENCY: `${this.concurrency}`,
-        },
-      });
+    const proc = spawn(electronPath, args, {
+      stdio: ["ipc", "inherit", "inherit"],
+      env: {
+        ...process.env,
+        DEBUG_MODE: this.debugMode ? "true" : "",
+        MIN_CONCURRENCY: String(this.minConcurrency),
+        MAX_CONCURRENCY: String(this.maxConcurrency),
+      },
+    });
+    proc.on("close", (code) => this.kill(`exited (${code})`));
+    proc.on("error", (error) => this.kill(String(error)));
+    proc.on("message", (message: ProcessIpcOutputMessage) => {
+      switch (message.type) {
+        case "run-resolved":
+        case "run-rejected":
+        case "run-status":
+          this.scriptHandlers.get(message.id)?.(message);
+          break;
 
+        case "fatal":
+          void this.kill(message.error);
+          break;
+      }
+    });
+
+    this.readyPromise = new Promise((resolve, reject) => {
       proc.on("error", reject);
-      proc.on("close", () => {
-        this.kill();
-      });
-
-      // send electron ready signal
       proc.once("message", (message: ProcessIpcOutputMessage) => {
-        if (message.type !== "electron-ready") {
-          reject(new Error(`unexpected message type ${message.type}`));
+        switch (message.type) {
+          case "electron-ready":
+            this.ready = true;
+            resolve();
+            break;
+          case "run-resolved":
+          case "run-status":
+          case "run-rejected":
+            reject(new Error(`unexpected ${message.type} message`));
+            break;
+          case "fatal":
+            reject(new Error(`fatal error ${message.error}`));
+            break;
         }
-        resolve(proc);
       });
     });
+    return proc;
   }
 
   /**
    * kill all electron proc
    */
-  public async kill(): Promise<void> {
+  public async kill(message: string): Promise<void> {
+    for (const [id, fn] of this.scriptHandlers.entries()) {
+      fn({ type: "run-rejected", id, error: `process killed: ${message}` });
+    }
     if (this.process) {
-      const process = await this.process;
-      process.kill();
+      this.process.kill();
       this.process = undefined;
     }
   }
 
-  public async runScript(params: RunScriptParams): Promise<any> {
+  /**
+   * Run a script in electron renderer process
+   */
+  public async runScript<Status = any>({
+    pathname,
+    functionName = "default",
+    args = [],
+    statusCallback,
+    signal,
+  }: {
+    pathname: string;
+    functionName?: string;
+    args?: any[];
+    statusCallback?: (status: Status) => void;
+    signal?: AbortSignal;
+  }): Promise<any> {
     const id = uuid();
 
-    const proc = await this.getProcess();
+    const proc = this.process;
 
-    return new Promise((resolve, reject) => {
-      function onMessage(message: ProcessIpcOutputMessage) {
-        switch (message.type) {
-          case "run-resolved":
-            if (message.id === id) {
-              resolve(message.value);
-            }
+    if (!proc) {
+      throw new Error("electron process lost");
+    }
+
+    return new Promise(async (resolve, reject) => {
+      this.scriptHandlers.set(id, (event: RunResultEvent) => {
+        if (signal?.aborted) {
+          this.scriptHandlers.delete(id);
+          reject(new Error("script aborted"));
+          return;
+        }
+        switch (event.type) {
+          case "run-status":
+            statusCallback?.(event.status);
             break;
+
+          case "run-resolved":
+            resolve(event.value);
+            this.scriptHandlers.delete(id);
+            break;
+
           case "run-rejected":
-            if (message.id === id) {
-              reject(new Error(message.error));
-            }
+            reject(event.error);
+            this.scriptHandlers.delete(id);
             break;
         }
-      }
+      });
 
-      function onClose() {
-        reject(new Error("Electron process closed"));
-        removeListeners();
-      }
+      await this.readyPromise;
 
-      function removeListeners() {
-        proc.removeListener("message", onMessage);
-        proc.removeListener("close", onClose);
-      }
+      this.send({
+        id,
+        type: "run-script",
+        pathname,
+        functionName,
+        args,
+        hasStatusCallback: !!statusCallback,
+        hasAbortSignal: !!signal,
+      });
 
-      // listen the running result
-      proc.on("message", onMessage);
-      proc.on("close", onClose);
-
-      const message: RunScriptEvent = { id, type: "run-script", ...params };
-      proc.send(message);
+      signal?.addEventListener("abort", () => {
+        this.send({ id, type: "abort-script" });
+      });
     });
+  }
+
+  private send(message: ProcessIpcInputMessage): void {
+    if (!this.process) {
+      throw new Error("electron process lost");
+    }
+    this.process.send(message);
   }
 }

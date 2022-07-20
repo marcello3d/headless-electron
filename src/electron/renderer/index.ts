@@ -1,5 +1,9 @@
 import { ipcRenderer } from "electron";
-import { ElectronIpcRendererEvent, RunScriptEvent } from "../shared";
+import {
+  ElectronIpcRendererInputMessage,
+  ElectronIpcRendererOutputMessage,
+  RunScriptEvent,
+} from "../shared";
 
 export type Args = {
   readonly debugMode?: boolean;
@@ -18,38 +22,73 @@ if (debugMode) {
   console.log(`👏 Jest-Electron is Running...`);
 }
 
-function send(channel: string, message: ElectronIpcRendererEvent) {
+function send(channel: string, message: ElectronIpcRendererOutputMessage) {
   ipcRenderer.send(channel, message);
 }
 
+let currentAbortController: AbortController | undefined;
+
 ipcRenderer.on(
   "message",
-  async (
-    event,
-    { id, pathname, functionName = "default", args = [] }: RunScriptEvent
-  ) => {
-    try {
-      if (debugMode) {
-        console.log(`🍰: [${id}] running ${pathname}#${functionName}(${args})`);
-      }
-      const value = await require(pathname)[functionName](...args);
-      if (debugMode) {
-        console.log(`🎸: [${id}] done`);
-      }
-      send(id, {
-        type: "run-resolved",
-        id,
-        value,
-      });
-    } catch (error) {
-      if (debugMode) {
-        console.error(error);
-      }
-      send(id, {
-        type: "run-rejected",
-        id,
-        error: error.message || error.toString(),
-      });
+  async (event, message: ElectronIpcRendererInputMessage) => {
+    switch (message.type) {
+      case "abort-script":
+        if (debugMode) {
+          console.log(`🛑: [${message.id}] received abort!`);
+        }
+        currentAbortController?.abort();
+        break;
+
+      case "run-script":
+        void runScript(message);
+        break;
     }
   }
 );
+
+async function runScript({
+  id,
+  pathname,
+  functionName,
+  args,
+  hasAbortSignal,
+  hasStatusCallback,
+}: RunScriptEvent) {
+  try {
+    if (debugMode) {
+      console.log(`🍰: [${id}] running ${pathname}#${functionName}(${args})`);
+    }
+    currentAbortController = hasAbortSignal ? new AbortController() : undefined;
+    const fn = require(pathname)[functionName];
+    const value = await fn.apply(
+      {
+        abortSignal: currentAbortController?.signal,
+        statusCallback: hasStatusCallback
+          ? (status: any) => {
+              send(id, { type: "run-status", id, status });
+            }
+          : undefined,
+      },
+      args
+    );
+    if (debugMode) {
+      console.log(`🎸: [${id}] done`);
+    }
+    send(id, {
+      type: "run-resolved",
+      id,
+      value,
+    });
+  } catch (error) {
+    if (debugMode) {
+      console.error(error);
+    }
+    send(id, {
+      type: "run-rejected",
+      id,
+      error: error.message || error.toString(),
+    });
+  } finally {
+    currentAbortController = undefined;
+  }
+}

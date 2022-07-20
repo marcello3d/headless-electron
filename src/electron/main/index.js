@@ -1,12 +1,11 @@
-try {
-  require("ts-node/register/transpile-only");
-} catch (e) {
-  // issok
-}
-
-try {
-  require("./main");
-} catch (e) {
-  console.error(e);
+function onError(error) {
+  process.stderr.write(
+    (error instanceof Error ? error.stack : `Uncaught error: ${error}`) + "\n"
+  );
+  process.send({ type: "fatal", error: String(error) });
   process.exit(-1);
 }
+process.on("uncaughtException", onError);
+process.on("unhandledRejection", onError);
+
+require("./main");
