@@ -7,7 +7,7 @@ const minConcurrency = Number(process.env.MIN_CONCURRENCY);
 const maxConcurrency = Number(process.env.MAX_CONCURRENCY);
 
 if (!debugMode) {
-  app.dock.hide();
+  app.dock?.hide();
 }
 
 app.on("window-all-closed", () => {
