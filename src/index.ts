@@ -105,7 +105,7 @@ export class ElectronProcess {
   /**
    * kill all electron proc
    */
-  public async kill(message: string): Promise<void> {
+  public async kill(message: string = "closed"): Promise<void> {
     for (const [id, fn] of this.scriptHandlers.entries()) {
       fn({ type: "run-rejected", id, error: `process killed: ${message}` });
     }

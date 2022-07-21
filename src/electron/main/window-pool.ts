@@ -163,10 +163,10 @@ export class WindowPool {
   /**
    * run test case by send it to renderer
    */
-  public async runScript(
+  public runScript(
     params: RunScriptEvent,
     processSend: (message: ProcessIpcOutputMessage) => void
-  ): Promise<void> {
+  ): void {
     this.getIdleWindow()
       .then((win) => this.runScriptOnWindow(win, params, processSend))
       .catch((e) => {
