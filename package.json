@@ -1,6 +1,6 @@
 {
   "name": "headless-electron",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Easiest way to run jest unit test cases in electron.",
   "main": "lib/index.js",
   "files": [
