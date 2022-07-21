@@ -4,6 +4,7 @@ import { BrowserWindow, ipcMain, RenderProcessGoneDetails } from "electron";
 import { delay } from "../../utils/delay";
 import {
   ElectronIpcRendererInputMessage,
+  HeadlessElectronOptions,
   ProcessIpcOutputMessage,
   RunResultEvent,
   RunScriptEvent,
@@ -21,16 +22,23 @@ type RunningScript = {
 export class WindowPool {
   private readonly idlePool = new Set<BrowserWindow>();
   private readonly activePool = new Map<string, BrowserWindow>();
+  private readonly debugMode: boolean;
+  private readonly preloadRequire?: string;
+  private readonly maxConcurrency: number;
 
   // create new browser window instance lock flag
   private locked = false;
 
-  constructor(
-    private readonly minSize: number,
-    private readonly maxSize: number,
-    private readonly debugMode: boolean = false
-  ) {
-    for (let i = 0; i < minSize; i++) {
+  constructor({
+    debugMode,
+    minConcurrency,
+    maxConcurrency,
+    preloadRequire,
+  }: HeadlessElectronOptions) {
+    this.debugMode = debugMode;
+    this.maxConcurrency = maxConcurrency;
+    this.preloadRequire = preloadRequire;
+    for (let i = 0; i < minConcurrency; i++) {
       void this.create();
     }
   }
@@ -99,7 +107,12 @@ export class WindowPool {
       });
 
       const fileUrl = url.format({
-        hash: encodeURIComponent(JSON.stringify({ debugMode: this.debugMode })),
+        hash: encodeURIComponent(
+          JSON.stringify({
+            debugMode: this.debugMode,
+            preloadRequire: this.preloadRequire,
+          })
+        ),
         pathname: path.join(__dirname, "/index.html"),
         protocol: "file:",
         slashes: true,
@@ -137,7 +150,7 @@ export class WindowPool {
    * whether the pool is full
    */
   public isFull() {
-    return this.size() >= this.maxSize;
+    return this.size() >= this.maxConcurrency;
   }
   private retainWin(id: string, win: BrowserWindow) {
     this.idlePool.delete(win);

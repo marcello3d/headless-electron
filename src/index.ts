@@ -2,6 +2,7 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { uuid } from "./utils/uuid";
 import {
+  HeadlessElectronOptions,
   ProcessIpcInputMessage,
   ProcessIpcOutputMessage,
   RunResultEvent,
@@ -15,7 +16,8 @@ export class ElectronProcess {
   private process: SpawnProcess | undefined;
   private ready = false;
   private readyPromise: Promise<void>;
-  private readonly debugMode: boolean;
+  private readonly options: HeadlessElectronOptions;
+  private readonly preloadRequire?: string;
   private readonly minConcurrency: number;
   private readonly maxConcurrency: number;
 
@@ -26,22 +28,21 @@ export class ElectronProcess {
 
   constructor({
     debugMode = false,
+    preloadRequire,
     minConcurrency = 0,
     maxConcurrency = 1,
-  }: {
-    debugMode?: boolean;
-    minConcurrency?: number;
-    maxConcurrency?: number;
-    requires?: string[];
-  } = {}) {
+  }: Partial<HeadlessElectronOptions> = {}) {
     if (minConcurrency > maxConcurrency) {
       throw new Error(
         '"minConcurrency" must be less than or equal to "maxConcurrency"'
       );
     }
-    this.debugMode = debugMode;
-    this.minConcurrency = minConcurrency;
-    this.maxConcurrency = maxConcurrency;
+    this.options = {
+      debugMode,
+      preloadRequire,
+      minConcurrency,
+      maxConcurrency,
+    };
     this.process = this.spawnElectron();
   }
 
@@ -59,9 +60,7 @@ export class ElectronProcess {
       stdio: ["ipc", "inherit", "inherit"],
       env: {
         ...process.env,
-        DEBUG_MODE: this.debugMode ? "true" : "",
-        MIN_CONCURRENCY: String(this.minConcurrency),
-        MAX_CONCURRENCY: String(this.maxConcurrency),
+        HEADLESS_ELECTRON_OPTIONS: JSON.stringify(this.options),
       },
     });
     proc.on("close", (code) => this.kill(`exited (${code})`));

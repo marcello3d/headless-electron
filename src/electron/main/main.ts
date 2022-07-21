@@ -1,12 +1,16 @@
 import { app } from "electron";
 import { WindowPool } from "./window-pool";
-import { ProcessIpcInputMessage, ProcessIpcOutputMessage } from "../shared";
+import {
+  HeadlessElectronOptions,
+  ProcessIpcInputMessage,
+  ProcessIpcOutputMessage,
+} from "../shared";
 
-const debugMode = !!process.env.DEBUG_MODE;
-const minConcurrency = Number(process.env.MIN_CONCURRENCY);
-const maxConcurrency = Number(process.env.MAX_CONCURRENCY);
+const options = JSON.parse(
+  process.env.HEADLESS_ELECTRON_OPTIONS ?? "{}"
+) as HeadlessElectronOptions;
 
-if (!debugMode) {
+if (!options.debugMode) {
   app.dock?.hide();
 }
 
@@ -25,7 +29,7 @@ function send(message: ProcessIpcOutputMessage) {
 
 app.on("ready", () => {
   // create a window pool instance
-  const windowPool = new WindowPool(minConcurrency, maxConcurrency, debugMode);
+  const windowPool = new WindowPool(options);
 
   // redirect the test cases data, and redirect test result after running in electron
   process.on("message", (message: ProcessIpcInputMessage) => {

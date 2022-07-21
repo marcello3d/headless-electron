@@ -55,3 +55,10 @@ export type ElectronIpcRendererInputMessage = RunScriptEvent | AbortEvent;
 export type ElectronIpcRendererOutputMessage =
   | RunResultEvent
   | ElectronReadyEvent;
+
+export type HeadlessElectronOptions = {
+  debugMode: boolean;
+  preloadRequire?: string;
+  minConcurrency: number;
+  maxConcurrency: number;
+};

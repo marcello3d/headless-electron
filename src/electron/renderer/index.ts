@@ -7,6 +7,7 @@ import {
 
 export type Args = {
   readonly debugMode?: boolean;
+  readonly preloadRequire?: string;
 };
 
 // pass the args by url hash
@@ -16,10 +17,17 @@ try {
   args = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
 } catch (e) {}
 
-const debugMode = args.debugMode;
+const { debugMode = false, preloadRequire } = args;
 
 if (debugMode) {
-  console.log(`👏 Jest-Electron is Running...`);
+  console.log(`👏 headless-electron is Running...`);
+}
+
+if (preloadRequire) {
+  if (debugMode) {
+    console.log(`📌 loading preloadRequire: ${preloadRequire}`);
+  }
+  require(preloadRequire);
 }
 
 function send(channel: string, message: ElectronIpcRendererOutputMessage) {

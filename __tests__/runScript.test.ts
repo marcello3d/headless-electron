@@ -77,7 +77,9 @@ describe("headless-electron", () => {
   });
 
   it("runs default typescript function", async () => {
-    const ep = new ElectronProcess();
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+    });
     try {
       const result = await ep.runScript({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
@@ -90,7 +92,9 @@ describe("headless-electron", () => {
   });
 
   it("runs named typescript function", async () => {
-    const ep = new ElectronProcess();
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+    });
     try {
       const result = await ep.runScript({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
@@ -104,7 +108,9 @@ describe("headless-electron", () => {
   });
 
   it("generates canvas image", async () => {
-    const ep = new ElectronProcess();
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+    });
     try {
       const result = await ep.runScript({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
@@ -120,7 +126,9 @@ describe("headless-electron", () => {
   });
 
   it("supports aborting", async () => {
-    const ep = new ElectronProcess();
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+    });
     try {
       const controller = new AbortController();
       const promise = ep.runScript({
@@ -139,7 +147,9 @@ describe("headless-electron", () => {
   });
 
   it("supports status callbacks", async () => {
-    const ep = new ElectronProcess();
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+    });
     try {
       const statuses: any[] = [];
       await ep.runScript({
@@ -154,7 +164,10 @@ describe("headless-electron", () => {
   });
 
   it("runs 100 times in a loop", async () => {
-    const ep = new ElectronProcess({ maxConcurrency: 10 });
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
+      maxConcurrency: 10,
+    });
     try {
       const promises: Promise<unknown>[] = [];
       const expectedResults: number[] = [];
