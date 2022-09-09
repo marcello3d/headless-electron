@@ -16,7 +16,6 @@ type SpawnProcess = ReturnType<typeof spawn>;
 export class WrappedError extends Error {
   constructor(error: PlainError) {
     super(error.message);
-    console.log("making wrapped error", error);
     this.name = error.name;
     this.stack = error.stack;
   }
