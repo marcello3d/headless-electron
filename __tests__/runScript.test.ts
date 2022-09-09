@@ -1,7 +1,8 @@
+// Note this is running from the build code
+// Build with `npm run build` first
 import { ElectronProcess } from "../lib";
 import * as path from "path";
 import { delay } from "../src/utils/delay";
-import { WrappedError } from "../src";
 
 jest.setTimeout(process.env.CI ? 30_000 : 5_000);
 
@@ -9,7 +10,7 @@ describe("headless-electron", () => {
   it("runs default script", async () => {
     const ep = new ElectronProcess();
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<number>({
         pathname: path.resolve(__dirname, "runScript-js.js"),
         args: [1],
       });
@@ -22,7 +23,7 @@ describe("headless-electron", () => {
   it("runs named script", async () => {
     const ep = new ElectronProcess();
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<number>({
         pathname: path.resolve(__dirname, "runScript-js.js"),
         functionName: "multiply",
         args: [2, 3],
@@ -36,7 +37,7 @@ describe("headless-electron", () => {
   it("runs async script", async () => {
     const ep = new ElectronProcess();
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<number>({
         pathname: path.resolve(__dirname, "runScript-js.js"),
         functionName: "asyncMultiply",
         args: [2, 3],
@@ -82,7 +83,7 @@ describe("headless-electron", () => {
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
     });
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<number>({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
         args: [1],
       });
@@ -97,7 +98,7 @@ describe("headless-electron", () => {
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
     });
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<number>({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
         functionName: "multiply",
         args: [2, 3],
@@ -113,7 +114,7 @@ describe("headless-electron", () => {
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
     });
     try {
-      const result = await ep.runScript({
+      const result = await ep.runScript<string>({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
         functionName: "canvasDrawRectToPng",
       });
@@ -152,8 +153,8 @@ describe("headless-electron", () => {
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
     });
     try {
-      const statuses: any[] = [];
-      await ep.runScript({
+      const statuses: number[] = [];
+      await ep.runScript<void, number>({
         pathname: path.resolve(__dirname, "runScript-ts.ts"),
         functionName: "statusCallback",
         statusCallback: (status) => statuses.push(status),
@@ -170,11 +171,11 @@ describe("headless-electron", () => {
       maxConcurrency: 10,
     });
     try {
-      const promises: Promise<unknown>[] = [];
+      const promises: Promise<number>[] = [];
       const expectedResults: number[] = [];
       for (let i = 0; i < 100; i++) {
         promises.push(
-          ep.runScript({
+          ep.runScript<number>({
             pathname: path.resolve(__dirname, "runScript-ts.ts"),
             functionName: "multiply",
             args: [i, 3],

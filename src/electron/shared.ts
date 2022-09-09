@@ -5,7 +5,7 @@ export type RunScriptEvent = {
   id: string;
   pathname: string;
   functionName: string;
-  args: any[];
+  args: unknown[];
   hasStatusCallback: boolean;
   hasAbortSignal: boolean;
 };
@@ -23,12 +23,12 @@ export type RunResultEvent =
 export type RunResolvedEvent = {
   type: "run-resolved";
   id: string;
-  value: any;
+  value: unknown;
 };
 export type RunStatusEvent = {
   type: "run-status";
   id: string;
-  status: any;
+  status: unknown;
 };
 
 export type RunRejectedEvent = {

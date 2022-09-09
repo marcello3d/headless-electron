@@ -9,6 +9,7 @@ import {
 } from "./electron/shared";
 import { makePlainError, PlainError } from "./utils/plain-error";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const electronPath = require("electron") as unknown as string;
 
 type SpawnProcess = ReturnType<typeof spawn>;
@@ -26,9 +27,6 @@ export class ElectronProcess {
   private ready = false;
   private readyPromise: Promise<void>;
   private readonly options: HeadlessElectronOptions;
-  private readonly preloadRequire?: string;
-  private readonly minConcurrency: number;
-  private readonly maxConcurrency: number;
 
   private readonly scriptHandlers = new Map<
     string,
@@ -134,7 +132,7 @@ export class ElectronProcess {
   /**
    * Run a script in electron renderer process
    */
-  public async runScript<Status = any>({
+  public async runScript<Result = unknown, Status = unknown>({
     pathname,
     functionName = "default",
     args = [],
@@ -143,10 +141,10 @@ export class ElectronProcess {
   }: {
     pathname: string;
     functionName?: string;
-    args?: any[];
+    args?: unknown[];
     statusCallback?: (status: Status) => void;
     signal?: AbortSignal;
-  }): Promise<any> {
+  }): Promise<Result> {
     const id = uuid();
 
     const proc = this.process;
@@ -155,7 +153,7 @@ export class ElectronProcess {
       throw new Error("electron process lost");
     }
 
-    return new Promise(async (resolve, reject) => {
+    const runPromise = new Promise<Result>((resolve, reject) => {
       this.scriptHandlers.set(id, (event: RunResultEvent) => {
         if (signal?.aborted) {
           this.scriptHandlers.delete(id);
@@ -164,11 +162,11 @@ export class ElectronProcess {
         }
         switch (event.type) {
           case "run-status":
-            statusCallback?.(event.status);
+            statusCallback?.(event.status as Status);
             break;
 
           case "run-resolved":
-            resolve(event.value);
+            resolve(event.value as Result);
             this.scriptHandlers.delete(id);
             break;
 
@@ -178,23 +176,25 @@ export class ElectronProcess {
             break;
         }
       });
-
-      await this.readyPromise;
-
-      this.send({
-        id,
-        type: "run-script",
-        pathname,
-        functionName,
-        args,
-        hasStatusCallback: !!statusCallback,
-        hasAbortSignal: !!signal,
-      });
-
-      signal?.addEventListener("abort", () => {
-        this.send({ id, type: "abort-script" });
-      });
     });
+
+    await this.readyPromise;
+
+    this.send({
+      id,
+      type: "run-script",
+      pathname,
+      functionName,
+      args,
+      hasStatusCallback: !!statusCallback,
+      hasAbortSignal: !!signal,
+    });
+
+    signal?.addEventListener("abort", () => {
+      this.send({ id, type: "abort-script" });
+    });
+
+    return await runPromise;
   }
 
   private send(message: ProcessIpcInputMessage): void {

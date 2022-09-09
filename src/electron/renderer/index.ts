@@ -1,3 +1,6 @@
+// We want console logging here for debugging purposes
+/* eslint-disable no-console */
+
 import { ipcRenderer } from "electron";
 import {
   ElectronIpcRendererInputMessage,
@@ -16,7 +19,9 @@ let args: Args = {};
 
 try {
   args = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-} catch (e) {}
+} catch (e) {
+  console.error("🚨: could not read args", e);
+}
 
 const { debugMode = false, preloadRequire } = args;
 
@@ -68,12 +73,13 @@ async function runScript({
       console.log(`🍰: [${id}] running ${pathname}#${functionName}(${args})`);
     }
     currentAbortController = hasAbortSignal ? new AbortController() : undefined;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fn = require(pathname)[functionName];
     const value = await fn.apply(
       {
         abortSignal: currentAbortController?.signal,
         statusCallback: hasStatusCallback
-          ? (status: any) => {
+          ? (status: unknown) => {
               send(id, { type: "run-status", id, status });
             }
           : undefined,

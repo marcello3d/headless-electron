@@ -1,14 +1,14 @@
 import { delay } from "../src/utils/delay";
 
-export default function addOne(input) {
+export default function addOne(input: number): number {
   return input + 1;
 }
 
-export function multiply(a, b) {
+export function multiply(a: number, b: number): number {
   return a * b;
 }
 
-export function canvasDrawRectToPng() {
+export function canvasDrawRectToPng(): string {
   const canvas = document.createElement("canvas");
   canvas.width = 100;
   canvas.height = 100;
@@ -21,7 +21,7 @@ export function canvasDrawRectToPng() {
 }
 
 export async function statusCallback(this: {
-  statusCallback?: (status: any) => void;
+  statusCallback?: (status: number) => void;
 }) {
   for (let i = 0; i < 10; i++) {
     await delay(10);

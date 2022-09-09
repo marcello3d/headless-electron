@@ -10,12 +10,6 @@ import {
   RunScriptEvent,
 } from "../shared";
 
-type RunningScript = {
-  promiseResolve: (result: any) => void;
-  promiseReject: (error: any) => void;
-  statusCallback?: (status: any) => void;
-};
-
 /**
  * browser window (renderer) pool
  */
@@ -49,7 +43,7 @@ export class WindowPool {
   private async getIdleWindow(): Promise<BrowserWindow> {
     // if locked, delay and retry
     if (this.locked) {
-      await delay();
+      await delay(200);
       return await this.getIdleWindow();
     }
 
@@ -73,7 +67,7 @@ export class WindowPool {
 
     // no available windows, wait...
     if (this.isFull()) {
-      await delay();
+      await delay(200);
       return await this.getAsync();
     }
 
@@ -208,7 +202,9 @@ export class WindowPool {
     };
 
     function onResult(event, message: RunResultEvent) {
-      processSend(message);
+      if (!resolved) {
+        processSend(message);
+      }
 
       switch (message.type) {
         case "run-resolved":
@@ -221,14 +217,16 @@ export class WindowPool {
     ipcMain.on(id, onResult);
 
     function onError(event, details: RenderProcessGoneDetails) {
-      processSend({
-        type: "run-rejected",
-        id,
-        error: {
-          name: "RenderProcessGone",
-          message: `${details.reason} (${details.exitCode})`,
-        },
-      });
+      if (!resolved) {
+        processSend({
+          type: "run-rejected",
+          id,
+          error: {
+            name: "RenderProcessGone",
+            message: `${details.reason} (${details.exitCode})`,
+          },
+        });
+      }
       cleanup();
       win.close();
     }
