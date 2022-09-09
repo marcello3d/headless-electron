@@ -29,11 +29,18 @@ if (debugMode) {
   console.log(`👏 headless-electron is Running...`);
 }
 
+let preloadError = undefined;
+
 if (preloadRequire) {
   if (debugMode) {
     console.log(`📌 loading preloadRequire: ${preloadRequire}`);
   }
-  require(preloadRequire);
+  try {
+    require(preloadRequire);
+  } catch (e) {
+    preloadError = e;
+    console.error(`🚨: could not load preload ${preloadRequire}:`, e);
+  }
 }
 
 function send(channel: string, message: ElectronIpcRendererOutputMessage) {
@@ -71,6 +78,9 @@ async function runScript({
   try {
     if (debugMode) {
       console.log(`🍰: [${id}] running ${pathname}#${functionName}(${args})`);
+    }
+    if (preloadError) {
+      throw preloadError;
     }
     currentAbortController = hasAbortSignal ? new AbortController() : undefined;
     // eslint-disable-next-line @typescript-eslint/no-var-requires

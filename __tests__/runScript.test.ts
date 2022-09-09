@@ -78,6 +78,23 @@ describe("headless-electron", () => {
     }
   });
 
+  it("handles error in preload", async () => {
+    const ep = new ElectronProcess({
+      preloadRequire: path.resolve(__dirname, "preload-error.js"),
+    });
+    try {
+      await expect(
+        ep.runScript<number>({
+          pathname: path.resolve(__dirname, "runScript-js.js"),
+          functionName: "multiply",
+          args: [2, 3],
+        })
+      ).rejects.toMatchInlineSnapshot(`[Error: oops]`);
+    } finally {
+      await ep.kill();
+    }
+  });
+
   it("runs default typescript function", async () => {
     const ep = new ElectronProcess({
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
