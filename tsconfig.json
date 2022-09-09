@@ -7,8 +7,7 @@
     "outDir": "lib",
     "allowSyntheticDefaultImports": true,
     "strictNullChecks": true,
-    "lib": ["esnext", "dom"],
-    "jsx": "react"
+    "lib": ["esnext", "dom"]
   },
   "include": ["src"]
 }
