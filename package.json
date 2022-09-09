@@ -1,12 +1,11 @@
 {
   "name": "headless-electron",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Easiest way to run jest unit test cases in electron.",
   "main": "lib/index.js",
   "files": [
     "lib",
-    "runner.js",
-    "environment.js"
+    "src"
   ],
   "simple-git-hooks": {
     "pre-commit": "npx pretty-quick --staged"
