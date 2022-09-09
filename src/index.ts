@@ -7,10 +7,20 @@ import {
   ProcessIpcOutputMessage,
   RunResultEvent,
 } from "./electron/shared";
+import { makePlainError, PlainError } from "./utils/plain-error";
 
 const electronPath = require("electron") as unknown as string;
 
 type SpawnProcess = ReturnType<typeof spawn>;
+
+export class WrappedError extends Error {
+  constructor(error: PlainError) {
+    super(error.message);
+    console.log("making wrapped error", error);
+    this.name = error.name;
+    this.stack = error.stack;
+  }
+}
 
 export class ElectronProcess {
   private process: SpawnProcess | undefined;
@@ -63,8 +73,10 @@ export class ElectronProcess {
         HEADLESS_ELECTRON_OPTIONS: JSON.stringify(this.options),
       },
     });
-    proc.on("close", (code) => this.kill(`exited (${code})`));
-    proc.on("error", (error) => this.kill(String(error)));
+    proc.on("close", (code) =>
+      this.kill({ name: "ProcessClosed", message: `exited (${code})` })
+    );
+    proc.on("error", (error) => this.kill(makePlainError(error)));
     proc.on("message", (message: ProcessIpcOutputMessage) => {
       switch (message.type) {
         case "run-resolved":
@@ -104,9 +116,15 @@ export class ElectronProcess {
   /**
    * kill all electron proc
    */
-  public async kill(message: string = "closed"): Promise<void> {
+  public async kill(
+    message: PlainError = { name: "Killed", message: "closed" }
+  ): Promise<void> {
     for (const [id, fn] of this.scriptHandlers.entries()) {
-      fn({ type: "run-rejected", id, error: `process killed: ${message}` });
+      fn({
+        type: "run-rejected",
+        id,
+        error: message,
+      });
     }
     if (this.process) {
       this.process.kill();
@@ -156,7 +174,7 @@ export class ElectronProcess {
             break;
 
           case "run-rejected":
-            reject(event.error);
+            reject(new WrappedError(event.error));
             this.scriptHandlers.delete(id);
             break;
         }

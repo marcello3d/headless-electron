@@ -224,7 +224,10 @@ export class WindowPool {
       processSend({
         type: "run-rejected",
         id,
-        error: `run script error: ${details.reason} (${details.exitCode})`,
+        error: {
+          name: "RenderProcessGone",
+          message: `${details.reason} (${details.exitCode})`,
+        },
       });
       cleanup();
       win.close();

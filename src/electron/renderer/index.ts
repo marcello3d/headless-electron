@@ -4,6 +4,7 @@ import {
   ElectronIpcRendererOutputMessage,
   RunScriptEvent,
 } from "../shared";
+import { makePlainError } from "../../utils/plain-error";
 
 export type Args = {
   readonly debugMode?: boolean;
@@ -94,7 +95,7 @@ async function runScript({
     send(id, {
       type: "run-rejected",
       id,
-      error: error.message || error.toString(),
+      error: makePlainError(error),
     });
   } finally {
     currentAbortController = undefined;

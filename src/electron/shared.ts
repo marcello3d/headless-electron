@@ -1,3 +1,5 @@
+import { PlainError } from "../utils/plain-error";
+
 export type RunScriptEvent = {
   type: "run-script";
   id: string;
@@ -32,7 +34,7 @@ export type RunStatusEvent = {
 export type RunRejectedEvent = {
   type: "run-rejected";
   id: string;
-  error: string;
+  error: PlainError;
 };
 
 export type ElectronReadyEvent = {
@@ -41,7 +43,7 @@ export type ElectronReadyEvent = {
 
 export type ElectronFatalEvent = {
   type: "fatal";
-  error: string;
+  error: PlainError;
 };
 
 export type ProcessIpcInputMessage = ElectronIpcRendererInputMessage;

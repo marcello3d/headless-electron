@@ -1,6 +1,7 @@
 import { ElectronProcess } from "../lib";
 import * as path from "path";
 import { delay } from "../src/utils/delay";
+import { WrappedError } from "../src";
 
 jest.setTimeout(process.env.CI ? 30_000 : 5_000);
 
@@ -55,7 +56,7 @@ describe("headless-electron", () => {
           functionName: "crashes",
           args: ["hello"],
         })
-      ).rejects.toMatchInlineSnapshot(`"fail: hello"`);
+      ).rejects.toMatchInlineSnapshot(`[Error: fail: hello]`);
     } finally {
       await ep.kill();
     }
@@ -70,7 +71,7 @@ describe("headless-electron", () => {
           functionName: "asyncCrash",
           args: ["hello"],
         })
-      ).rejects.toMatchInlineSnapshot(`"async fail:hello"`);
+      ).rejects.toMatchInlineSnapshot(`[Error: async fail:hello]`);
     } finally {
       await ep.kill();
     }
