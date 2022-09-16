@@ -4,9 +4,7 @@ export default function benchmarkWebgl(): string[] {
   const height = 2160;
 
   // Create a canvas
-  const canvas = window.document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  const canvas = new OffscreenCanvas(width, height);
 
   // Create context
   const options: WebGLContextAttributes = {
