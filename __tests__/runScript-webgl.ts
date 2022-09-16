@@ -14,7 +14,8 @@ export default function benchmarkWebgl(): string[] {
     powerPreference: "high-performance",
     failIfMajorPerformanceCaveat: true,
   };
-  const gl = canvas.getContext("webgl", options);
+  const gl =
+    canvas.getContext("webgl2", options) || canvas.getContext("webgl", options);
 
   if (!gl) {
     throw new Error("Could not create WebGL context");
