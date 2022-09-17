@@ -17,6 +17,6 @@ jobs:
       - name: run tests
         uses: GabrielBB/xvfb-action@v1
         with:
-          run: npm test
+          run: HEADLESS_ELECTRON_STARTUP_ARGS="--headless --use-gl=egl" npm test
         env:
           CI: true
