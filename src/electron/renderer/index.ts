@@ -93,6 +93,7 @@ async function runScript({
               send(id, { type: "run-status", id, status });
             }
           : undefined,
+        testCrash: () => send(id, { type: "test-crash" }),
       },
       args
     );

@@ -37,7 +37,7 @@ export class ElectronProcess {
     debugMode = false,
     preloadRequire,
     minConcurrency = 0,
-    maxConcurrency = 1,
+    maxConcurrency = minConcurrency || 1,
   }: Partial<HeadlessElectronOptions> = {}) {
     if (minConcurrency > maxConcurrency) {
       throw new Error(
