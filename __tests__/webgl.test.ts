@@ -2,7 +2,6 @@
 // Build with `npm run build` first
 import { ElectronProcess } from "../lib";
 import * as path from "path";
-import { delay } from "../src/utils/delay";
 
 jest.setTimeout(process.env.CI ? 30_000 : 5_000);
 

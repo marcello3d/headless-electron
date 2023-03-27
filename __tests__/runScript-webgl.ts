@@ -285,6 +285,10 @@ export default function benchmarkWebgl(): string[] {
           Math.round((time / elapsed) * 100) / 100
         } FPS`
       );
+      if (elapsed > 30) {
+        log.push("Stopping animation early (30 seconds elapsed)...");
+        break;
+      }
     }
   }
   const totalElapsed = timeInSecs(process.hrtime(startTime));
