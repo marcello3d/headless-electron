@@ -11,13 +11,14 @@ describe("headless-electron", () => {
       preloadRequire: path.resolve(__dirname, "preload-typescript.js"),
     });
     try {
-      const result = await ep.runScript<number>({
+      const log = await ep.runScript<string[]>({
         pathname: path.resolve(__dirname, "runScript-webgl.ts"),
         args: [],
       });
       // eslint-disable-next-line no-console
-      console.log(result);
-      expect(result).toHaveLength(21);
+      console.log(log);
+      expect(log.find((line) => /WebGL Version/.test(line))).toBeDefined();
+      expect(log.find((line) => /Done/.test(line))).toBeDefined();
     } finally {
       await ep.kill();
     }
