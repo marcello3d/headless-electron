@@ -18,6 +18,7 @@ export type AbortEvent = {
 export type RunResultEvent =
   | RunResolvedEvent
   | RunStatusEvent
+  | TestCrashEvent
   | RunRejectedEvent;
 
 export type RunResolvedEvent = {
@@ -29,6 +30,9 @@ export type RunStatusEvent = {
   type: "run-status";
   id: string;
   status: unknown;
+};
+export type TestCrashEvent = {
+  type: "test-crash";
 };
 
 export type RunRejectedEvent = {

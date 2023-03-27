@@ -14,8 +14,9 @@ if (!options.debugMode) {
   app.dock?.hide();
 }
 
+// Override the default behavior of quitting the app when all windows are closed
 app.on("window-all-closed", () => {
-  app.quit();
+  // do nothing
 });
 
 function send(message: ProcessIpcOutputMessage) {

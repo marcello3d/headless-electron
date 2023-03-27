@@ -9,6 +9,7 @@ import {
   RunResultEvent,
   RunScriptEvent,
 } from "../shared";
+import { makePlainError } from "../../utils/plain-error";
 
 /**
  * browser window (renderer) pool
@@ -79,7 +80,7 @@ export class WindowPool {
    */
   private async create(): Promise<BrowserWindow> {
     return new Promise((resolve, reject) => {
-      let win: BrowserWindow | undefined = new BrowserWindow({
+      const win: BrowserWindow = new BrowserWindow({
         width: 800,
         height: 600,
         show: this.debugMode,
@@ -87,17 +88,9 @@ export class WindowPool {
         webPreferences: {
           webSecurity: false,
           nodeIntegration: true,
+          nodeIntegrationInWorker: true,
           contextIsolation: false,
         },
-      });
-
-      // after window closed, remove it from pool for gc
-      win.on("closed", () => {
-        if (win) {
-          this.removeWin(win);
-          reject("window closed");
-          win = undefined;
-        }
       });
 
       const fileUrl = url.format({
@@ -180,7 +173,7 @@ export class WindowPool {
         processSend({
           type: "run-rejected",
           id: params.id,
-          error: e.message,
+          error: makePlainError(e),
         });
       });
   }
@@ -192,6 +185,8 @@ export class WindowPool {
   ): void {
     let resolved = false;
     const id = event.id;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
     this.retainWin(id, win);
 
     const cleanup = () => {
@@ -207,6 +202,9 @@ export class WindowPool {
       }
 
       switch (message.type) {
+        case "test-crash":
+          win.webContents.forcefullyCrashRenderer();
+          break;
         case "run-resolved":
         case "run-rejected":
           cleanup();
@@ -228,7 +226,7 @@ export class WindowPool {
         });
       }
       cleanup();
-      win.close();
+      self.removeWin(win);
     }
     // send test case into web contents for running
     win.webContents.on("render-process-gone", onError);

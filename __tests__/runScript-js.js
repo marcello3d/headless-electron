@@ -21,3 +21,10 @@ exports.asyncCrash = function (input) {
 exports.crashes = function (input) {
   throw new Error("fail: " + input);
 };
+
+exports.processCrash = function () {
+  this.testCrash();
+  return new Promise((resolve) => {
+    setTimeout(() => resolve("timed out trying to crash"), 10_000);
+  });
+};
