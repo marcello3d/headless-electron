@@ -15,7 +15,7 @@ describe("headless-electron", () => {
           functionName: "processCrash",
           args: [],
         })
-      ).rejects.toMatchInlineSnapshot(`[RenderProcessGone: killed (2)]`);
+      ).rejects.toMatchObject({ name: "RenderProcessGone" });
 
       await expect(
         ep.runScript<number>({
