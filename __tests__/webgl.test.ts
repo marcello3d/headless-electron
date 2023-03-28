@@ -3,7 +3,7 @@
 import { ElectronProcess } from "../lib";
 import * as path from "path";
 
-jest.setTimeout(process.env.CI ? 120_000 : 5_000);
+jest.setTimeout(process.env.CI ? 120_000 : 30_000);
 
 describe("headless-electron", () => {
   it("runs webgl script", async () => {

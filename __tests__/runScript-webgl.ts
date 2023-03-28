@@ -247,6 +247,7 @@ export default function benchmarkWebgl(): string[] {
 
   /*================= Drawing ===========================*/
   let time_old = 0;
+  const rgba = new Uint8Array(width * height * 4);
 
   const animate = function (time) {
     const dt = time - time_old;
@@ -267,6 +268,8 @@ export default function benchmarkWebgl(): string[] {
     gl.uniformMatrix4fv(Mmatrix, false, mov_matrix);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
   };
 
   function timeInSecs(time) {
@@ -276,17 +279,18 @@ export default function benchmarkWebgl(): string[] {
   log.push("Starting animation...");
   const numFrames = 10000;
   const startTime = process.hrtime();
-  for (let time = 0; time < numFrames; time += 1) {
-    animate(time);
-    if (time % 1000 === 0) {
+  let frame = 0;
+  for (; frame < numFrames; frame += 1) {
+    animate(frame);
+    if (frame % 100 === 0) {
       const elapsed = timeInSecs(process.hrtime(startTime));
       log.push(
-        `Elapsed: ${elapsed}, ${time} Frames, ${
-          Math.round((time / elapsed) * 100) / 100
+        `Elapsed: ${elapsed}, ${frame} Frames, ${
+          Math.round((frame / elapsed) * 100) / 100
         } FPS`
       );
-      if (elapsed > 30) {
-        log.push("Stopping animation early (30 seconds elapsed)...");
+      if (elapsed > 10) {
+        log.push(`Stopping animation early (${elapsed} seconds elapsed)...`);
         break;
       }
     }
@@ -295,7 +299,7 @@ export default function benchmarkWebgl(): string[] {
 
   log.push(
     `Done (took ${totalElapsed}s, or ${
-      Math.round((numFrames / totalElapsed) * 100) / 100
+      Math.round((frame / totalElapsed) * 100) / 100
     } FPS)`
   );
   return log;
